@@ -85,7 +85,7 @@ jobs:
     steps:
       - name: Notify Trello
         run: |
-          curl -X POST \
+          curl -v -X POST \
             "https://api.trello.com/1/cards" \
             -d "key=${{ secrets.TRELLO_API_KEY }}" \
             -d "token=${{ secrets.TRELLO_SECRET }}" \
