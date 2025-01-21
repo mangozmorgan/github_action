@@ -88,7 +88,7 @@ jobs:
           curl -X POST \
             "https://api.trello.com/1/cards" \
             -d "key=${{ secrets.TRELLO_API_KEY }}" \
-            -d "token=${{ secrets.TRELLO_TOKEN }}" \
+            -d "token=${{ secrets.TRELLO_SECRET }}" \
             -d "idList=678f791610bf79bb453bf6a5" \
             -d "name=Déploiement effectué sur main" \
             -d "desc=Le déploiement a été réalisé avec succès !" \
