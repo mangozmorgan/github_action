@@ -81,6 +81,9 @@ jobs:
 
 
   notify-trello:
+    needs:
+      - build
+      - deploy
     runs-on: ubuntu-latest
     steps:
       - name: Notify Trello
