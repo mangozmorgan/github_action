@@ -18,6 +18,7 @@ env:
   BUILD_PATH: "."
 
 jobs:
+
   build:
     name: Build
     runs-on: ubuntu-24.04
@@ -65,6 +66,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ env.BUILD_PATH }}/dist
+
   deploy:
     environment:
       name: github-pages
@@ -76,6 +78,22 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+
+  notify-trello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Trello
+        run: |
+          curl -X POST \
+            "https://api.trello.com/1/cards" \
+            -d "key=${{ secrets.TRELLO_API_KEY }}" \
+            -d "token=${{ secrets.TRELLO_TOKEN }}" \
+            -d "idList=678f791610bf79bb453bf6a5" \
+            -d "name=DÃ©ploiement effectuÃ© sur main" \
+            -d "desc=Le dÃ©ploiement a Ã©tÃ© rÃ©alisÃ© avec succÃ¨s !" \
+            -d "pos=top" 
+
   google_notification:
     needs:
       - build
@@ -87,6 +105,6 @@ jobs:
         uses: SimonScholz/google-chat-action@main
         with:
           webhookUrl: ${{ secrets.GOOGLE_CHAT_URL }}
-          title: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'Déployement effectué avec succès !' || 'Il y à eu un problème lors du deployement' }}
+          title: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'Dï¿½ployement effectuï¿½ avec succï¿½s !' || 'Il y ï¿½ eu un problï¿½me lors du deployement' }}
           subtitle: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'Bravo !' || 'Oups !' }}
           additionalSections: "\n            [\n              {\n                \"header\": \"Details de la fusion\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Titre du commit  : ${{ github.event.commits[0].message }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Auteur : ${{ github.event.commits[1].author.username }}\" } }\n                ]\n              },\n              {\n                \"header\": \"Resultats des jobs\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Build : ${{ needs.build.result }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Deployment : ${{ needs.deploy.result }}\" } }\n                ]\n              }\n            ]\n    "
