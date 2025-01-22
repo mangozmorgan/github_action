@@ -93,8 +93,8 @@ jobs:
             -d "key=${{ secrets.TRELLO_API_KEY }}" \
             -d "token=${{ secrets.TRELLO_SECRET }}" \
             -d "idList=678f791610bf79bb453bf6a5" \
-            -d "name=Déploiement effectué sur main" \
-            -d "desc=Le déploiement a été réalisé avec succès !" \
+            -d "name=La branche main a été mise à jour !" \
+            -d "desc=Ceci est un test par github action " \
             -d "pos=top" 
 
   google_notification:
