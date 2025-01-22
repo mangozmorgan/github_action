@@ -1,91 +1,112 @@
-
+# Nom du workflow GitHub Actions
 name: my_first_action
 
+# Déclencheur : ce workflow est exécuté à chaque push sur la branche "main"
 on:
   push:
     branches: ["main"]
 
+# Permissions accordées au workflow
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: read         # Autorise l'accès en lecture aux contenus du dépôt
+  pages: write           # Permet d'écrire des fichiers pour GitHub Pages
+  id-token: write        # Permet de générer des tokens d'identification OIDC (utiles pour des services externes)
 
+# Gestion de la concurrence pour éviter des conflits dans les déploiements GitHub Pages
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: "pages"         # Regroupe toutes les exécutions liées à "pages"
+  cancel-in-progress: false  # Les exécutions en cours ne seront pas annulées si une nouvelle démarre
 
+# Variables d'environnement pour le workflow
 env:
-  BUILD_PATH: "."
+  BUILD_PATH: "."        # Définit le chemin de base pour la construction du projet
 
+# Définition des tâches (jobs) du workflow
 jobs:
 
+  # Tâche : Construction du projet
   build:
-    name: Build
-    runs-on: ubuntu-24.04
+    name: Build          # Nom de la tâche
+    runs-on: ubuntu-24.04  # Utilise un conteneur Ubuntu 24.04 pour exécuter les étapes
     steps:
+      # Étape : Cloner le dépôt
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Étape : Détection du gestionnaire de paquets (yarn ou npm)
       - name: Detect package manager
         id: detect-package-manager
-        run: |-
+        run: |-  # Script Shell pour détecter le gestionnaire de paquets
           if [ -f "${{ github.workspace }}/yarn.lock" ]; then
-                      echo "manager=yarn" >> $GITHUB_OUTPUT
-                      echo "command=install" >> $GITHUB_OUTPUT
-                      echo "runner=yarn" >> $GITHUB_OUTPUT
-                      echo "lockfile=yarn.lock" >> $GITHUB_OUTPUT
-                      exit 0
-                    elif [ -f "${{ github.workspace }}/package.json" ]; then
-                      echo "manager=npm" >> $GITHUB_OUTPUT
-                      echo "command=ci" >> $GITHUB_OUTPUT
-                      echo "runner=npx --no-install" >> $GITHUB_OUTPUT
-                      echo "lockfile=package-lock.json" >> $GITHUB_OUTPUT
-                      exit 0
-                    else
-                      echo "Unable to determine package manager"
-                      exit 1
-                    fi
+            echo "manager=yarn" >> $GITHUB_OUTPUT
+            echo "command=install" >> $GITHUB_OUTPUT
+            echo "runner=yarn" >> $GITHUB_OUTPUT
+            echo "lockfile=yarn.lock" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ -f "${{ github.workspace }}/package.json" ]; then
+            echo "manager=npm" >> $GITHUB_OUTPUT
+            echo "command=ci" >> $GITHUB_OUTPUT
+            echo "runner=npx --no-install" >> $GITHUB_OUTPUT
+            echo "lockfile=package-lock.json" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "Unable to determine package manager"
+            exit 1
+
+      # Étape : Configurer Node.js avec mise en cache
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20'  # Utilise Node.js version 20
           cache: ${{ steps.detect-package-manager.outputs.manager }}
           cache-dependency-path: ${{ env.BUILD_PATH }}/${{ steps.detect-package-manager.outputs.lockfile }}
+
+      # Étape : Configurer les pages GitHub
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+
+      # Étape : Installer les dépendances
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
         working-directory: ${{ env.BUILD_PATH }}
+
+      # Étape : Construire le projet Astro
       - name: Build with Astro
         run: |-
           ${{ steps.detect-package-manager.outputs.runner }} astro build \
-                          --site "${{ steps.pages.outputs.origin }}" \
-                          --base ${{ steps.pages.outputs.base_path }}
+            --site "${{ steps.pages.outputs.origin }}" \
+            --base ${{ steps.pages.outputs.base_path }}
         working-directory: ${{ env.BUILD_PATH }}
+
+      # Étape : Télécharger les artefacts construits pour Pages
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ env.BUILD_PATH }}/dist
 
+  # Tâche : Déployer sur GitHub Pages
   deploy:
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    needs: build
-    runs-on: ubuntu-latest
-    name: Deploy
+      name: github-pages   # Déclare l'environnement de déploiement "github-pages"
+      url: ${{ steps.deployment.outputs.page_url }}  # URL des pages
+    needs: build           # Cette tâche dépend de la tâche "build"
+    runs-on: ubuntu-latest # Utilise Ubuntu latest
+    name: Deploy           # Nom de la tâche
     steps:
+      # Étape : Déployer les fichiers sur GitHub Pages
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-
+  # Tâche : Notification sur Trello
   notify-trello:
-    needs:
+    needs:                # Dépend des tâches "build" et "deploy"
       - build
       - deploy
     runs-on: ubuntu-latest
     steps:
+      # Étape : Envoyer une notification sur un tableau Trello
       - name: Notify Trello
         run: |
           curl -v -X POST \
@@ -95,19 +116,21 @@ jobs:
             -d "idList=678f791610bf79bb453bf6a5" \
             -d "name=La branche main a été mise à jour !" \
             -d "desc=Ceci est un test par github action " \
-            -d "pos=top" 
+            -d "pos=top"
 
+  # Tâche : Notification sur Google Chat
   google_notification:
-    needs:
+    needs:                # Dépend des tâches "build" et "deploy"
       - build
       - deploy
     runs-on: ubuntu-latest
     steps:
+      # Étape : Envoyer une notification à Google Chat
       - name: Notify Google Chat
-        if: ${{ always() }}
+        if: ${{ always() }} # Cette tâche s'exécute toujours, même en cas d'échec
         uses: SimonScholz/google-chat-action@main
         with:
           webhookUrl: ${{ secrets.GOOGLE_CHAT_URL }}
-          title: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'D�ployement effectu� avec succ�s !' || 'Il y � eu un probl�me lors du deployement' }}
+          title: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'Déployement effectué avec succès !' || 'Il y a eu un problème lors du déploiement' }}
           subtitle: ${{ needs.build.result == 'success' && needs.deploy.result == 'success' && 'Bravo !' || 'Oups !' }}
-          additionalSections: "\n            [\n              {\n                \"header\": \"Details de la fusion\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Titre du commit  : ${{ github.event.commits[0].message }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Auteur : ${{ github.event.commits[1].author.username }}\" } }\n                ]\n              },\n              {\n                \"header\": \"Resultats des jobs\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Build : ${{ needs.build.result }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Deployment : ${{ needs.deploy.result }}\" } }\n                ]\n              }\n            ]\n    "
+          additionalSections: "\n            [\n              {\n                \"header\": \"Détails de la fusion\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Titre du commit  : ${{ github.event.commits[0].message }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Auteur : ${{ github.event.commits[1].author.username }}\" } }\n                ]\n              },\n              {\n                \"header\": \"Résultats des jobs\",\n                \"collapsible\": true,\n                \"widgets\": [\n                  { \"decoratedText\": { \"text\": \"- Build : ${{ needs.build.result }}\" } },\n                  { \"decoratedText\": { \"text\": \"- Deployment : ${{ needs.deploy.result }}\" } }\n                ]\n              }\n            ]\n    "
